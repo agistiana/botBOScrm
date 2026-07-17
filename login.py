@@ -4,32 +4,19 @@ from playwright.async_api import Page
 from config import USER_EMAIL, USER_PASSWORD, BASE_URL
 
 async def login_bos_ampuh(page: Page):
-    """Melakukan login ke platform BOS Ampuh"""
     print("[*] Mengakses halaman login...")
-    
-    # Buka halaman login (BASE_URL = https://www.bosampuh.id/app)
     await page.goto(BASE_URL, wait_until="networkidle", timeout=30000)
-    
-    # Tunggu form login muncul
     await page.wait_for_selector("#username_operator", timeout=15000)
     print("[+] Form login ditemukan.")
     
-    # Isi email
     await page.locator("#username_operator").fill(USER_EMAIL)
-    
-    # Isi password
     await page.locator("#userPassword").fill(USER_PASSWORD)
     
     print("[*] Menekan tombol login...")
-    
-    # Klik tombol login dan tunggu navigasi
     async with page.expect_navigation(wait_until="networkidle", timeout=30000):
         await page.locator("button[type='submit']").click()
     
-    # Tunggu sebentar agar session tersimpan
     await page.wait_for_timeout(2000)
-    
-    # Cek apakah login berhasil
     current_url = page.url
     print(f"[*] URL saat ini: {current_url}")
     

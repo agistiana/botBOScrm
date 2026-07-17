@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Bos Ampuh Bot{% endblock %}
+{% block content %}
+<div class="row">
+    <!-- Kolom Kiri: Upload & Kontrol -->
+    <div class="col-lg-4 col-md-5">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="bi bi-cloud-upload"></i> Upload File Resi</h5>
+            </div>
+            <div class="card-body">
+                <form id="uploadForm">
+                    <div class="mb-3">
+                        <input class="form-control" type="file" id="fileInput" accept=".xlsx,.xls" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="uploadBtn">
+                        <i class="bi bi-upload"></i> Upload
+                    </button>
+                </form>
+                <div id="uploadStatus" class="mt-2"></div>
+                <div id="fileInfo" class="mt-2" style="display:none;">
+                    <div class="alert alert-success">
+                        <strong>File:</strong> <span id="filename"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="bi bi-play-circle"></i> Kontrol Bot</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2">
+                    <button id="startBotBtn" class="btn btn-success flex-fill" disabled>
+                        <i class="bi bi-play"></i> Mulai
+                    </button>
+                    <button id="stopBotBtn" class="btn btn-danger flex-fill" disabled>
+                        <i class="bi bi-stop"></i> Stop
+                    </button>
+                </div>
+                <div class="mt-3">
+                    <p><strong>Status:</strong> <span id="botStatus" class="badge bg-secondary">Idle</span></p>
+                    <p><strong>File terupload:</strong> <span id="uploadedFile">-</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kolom Kanan: Log & Hasil -->
+    <div class="col-lg-8 col-md-7">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="bi bi-terminal"></i> Log Proses</h5>
+            </div>
+            <div class="card-body">
+                <div id="logContainer" style="height: 300px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 13px;">
+                    <div id="logContent">Menunggu bot dijalankan...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-file-earmark-excel"></i> File Hasil Terbaru</h5>
+                <a href="{{ url_for('history') }}" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
+            </div>
+            <div class="card-body">
+                <div id="resultFiles">
+                    {% if result_files %}
+                    <div class="list-group">
+                        {% for file in result_files %}
+                        <a href="{{ url_for('download_file', filename=file.name) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-file-earmark-excel text-success"></i> {{ file.name }}</span>
+                            <span class="badge bg-primary rounded-pill">{{ file.size_kb }} KB</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">Belum ada file hasil.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    // Event source untuk log
+    const evtSource = new EventSource('/logs');
+    const logContent = document.getElementById('logContent');
+    const botStatus = document.getElementById('botStatus');
+    const startBtn = document.getElementById('startBotBtn');
+    const stopBtn = document.getElementById('stopBotBtn');
+    const uploadedFileSpan = document.getElementById('uploadedFile');
+    const fileInfoDiv = document.getElementById('fileInfo');
+    const filenameSpan = document.getElementById('filename');
+
+    let uploadedFilePath = null;
+
+    // Cek sessionStorage untuk file yang sudah diupload
+    const savedFile = sessionStorage.getItem('uploadedFile');
+    if (savedFile) {
+        uploadedFilePath = savedFile;
+        uploadedFileSpan.textContent = savedFile.split('/').pop();
+        startBtn.disabled = false;
+        fileInfoDiv.style.display = 'block';
+        filenameSpan.textContent = savedFile.split('/').pop();
+    }
+
+    // Upload file
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('Pilih file terlebih dahulu');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        document.getElementById('uploadBtn').disabled = true;
+        document.getElementById('uploadBtn').innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('uploadBtn').disabled = false;
+            document.getElementById('uploadBtn').innerHTML = '<i class="bi bi-upload"></i> Upload';
+            if (data.error) {
+                document.getElementById('uploadStatus').innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+            } else {
+                document.getElementById('uploadStatus').innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                uploadedFilePath = data.filepath;
+                uploadedFileSpan.textContent = data.filename;
+                fileInfoDiv.style.display = 'block';
+                filenameSpan.textContent = data.filename;
+                startBtn.disabled = false;
+                sessionStorage.setItem('uploadedFile', data.filepath);
+            }
+        })
+        .catch(err => {
+            document.getElementById('uploadBtn').disabled = false;
+            document.getElementById('uploadBtn').innerHTML = '<i class="bi bi-upload"></i> Upload';
+            document.getElementById('uploadStatus').innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+        });
+    });
+
+    // Event log
+    evtSource.onmessage = function(event) {
+        if (event.data) {
+            const data = JSON.parse(event.data);
+            if (data.message === '[BOT SELESAI]') {
+                botStatus.textContent = 'Selesai';
+                botStatus.className = 'badge bg-success';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                // Refresh daftar file hasil
+                refreshResultFiles();
+                return;
+            }
+            if (data.message) {
+                logContent.innerHTML += data.message + '<br>';
+                logContent.scrollTop = logContent.scrollHeight;
+            }
+        }
+    };
+
+    // Mulai bot
+    startBtn.addEventListener('click', function() {
+        if (!uploadedFilePath) {
+            alert('Upload file terlebih dahulu!');
+            return;
+        }
+        fetch('/start_bot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filepath: uploadedFilePath})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                botStatus.textContent = 'Running';
+                botStatus.className = 'badge bg-warning';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                logContent.innerHTML = '';
+            }
+        });
+    });
+
+    // Stop bot
+    stopBtn.addEventListener('click', function() {
+        fetch('/stop_bot', {
+            method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                botStatus.textContent = 'Stopping...';
+                botStatus.className = 'badge bg-danger';
+                stopBtn.disabled = true;
+            }
+        });
+    });
+
+    // Refresh daftar file hasil
+    function refreshResultFiles() {
+        fetch('/api/result_files')
+        .then(res => res.json())
+        .then(files => {
+            const container = document.getElementById('resultFiles');
+            if (files.length === 0) {
+                container.innerHTML = '<p class="text-muted">Belum ada file hasil.</p>';
+                return;
+            }
+            let html = '<div class="list-group">';
+            files.slice(0, 5).forEach(f => {
+                html += `<a href="/download/${f.name}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-file-earmark-excel text-success"></i> ${f.name}</span>
+                    <span class="badge bg-primary rounded-pill">${f.size_kb} KB</span>
+                </a>`;
+            });
+            html += '</div>';
+            if (files.length > 5) {
+                html += `<div class="text-center mt-2"><a href="/history" class="btn btn-sm btn-link">Lihat semua (${files.length})</a></div>`;
+            }
+            container.innerHTML = html;
+        });
+    }
+</script>
+{% endblock %}

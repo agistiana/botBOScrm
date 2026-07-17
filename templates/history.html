@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Daftar File Hasil{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5><i class="bi bi-files"></i> File Hasil Proses</h5>
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-secondary">Kembali ke Dashboard</a>
+    </div>
+    <div class="card-body">
+        <!-- Form Filter -->
+        <form method="GET" action="{{ url_for('history') }}" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label class="form-label">Tanggal</label>
+                <input type="date" class="form-control" name="date" value="{{ filter_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Bulan</label>
+                <select class="form-select" name="month">
+                    <option value="">Semua</option>
+                    {% for m in months %}
+                    <option value="{{ m }}" {% if filter_month|int == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Tahun</label>
+                <select class="form-select" name="year">
+                    <option value="">Semua</option>
+                    {% for y in years %}
+                    <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Nama File</label>
+                <input type="text" class="form-control" name="name" placeholder="Cari nama file..." value="{{ filter_name }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Filter</button>
+            </div>
+        </form>
+
+        <!-- Tabel File -->
+        {% if files %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Nama File</th>
+                        <th>Ukuran</th>
+                        <th>Tanggal Dibuat</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in files %}
+                    <tr>
+                        <td><i class="bi bi-file-earmark-excel text-success me-2"></i>{{ file.name }}</td>
+                        <td>{{ file.size_kb }} KB</td>
+                        <td>{{ file.modified }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('download_file', filename=file.name) }}" class="btn btn-primary">
+                                    <i class="bi bi-download"></i> Download
+                                </a>
+                                <button class="btn btn-danger delete-btn" data-filename="{{ file.name }}">
+                                    <i class="bi bi-trash"></i> Hapus
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <small class="text-muted">Total: {{ files|length }} file</small>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Tidak ada file yang sesuai dengan filter.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const filename = this.dataset.filename;
+            if (!confirm(`Yakin ingin menghapus file "${filename}"?`)) return;
+            fetch(`/delete/${filename}`, {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Gagal menghapus: ' + data.message);
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        });
+    });
+</script>
+{% endblock %}
