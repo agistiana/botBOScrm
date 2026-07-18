@@ -1,6 +1,5 @@
 ﻿========================================
 LANGKAH-LANGKAH MENJALANKAN PROGRAM
-BOT BOS AMPUH
 ========================================
 
 PERSYARATAN:
